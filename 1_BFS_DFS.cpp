@@ -7,45 +7,54 @@ class Graph {
     vector<vector<int>> adj;
 
 public:
-    Graph(int V) : V(V), adj(V) {}
-
-    void addEdge(int v, int w) {
-        adj[v].push_back(w);
-        adj[w].push_back(v); // Assuming undirected graph
+    Graph(int V) {
+        this->V = V;
+        adj.resize(V);
     }
 
-    void parallelDFS(int startVertex) {
+    void addEdge(int u, int v) {
+        adj[u].push_back(v);
+        adj[v].push_back(u); // Undirected graph
+    }
+
+    void parallelDFS(int start) {
         vector<bool> visited(V, false);
 
         #pragma omp parallel
         {
-            #pragma omp single nowait
-            {
-                parallelDFSUtil(startVertex, visited);
-            }
+            #pragma omp single
+            dfsUtil(start, visited);
         }
     }
 
-    void parallelDFSUtil(int v, vector<bool>& visited) {
+    void dfsUtil(int v, vector<bool>& visited) {
+        bool doVisit = false;
+
         #pragma omp critical
         {
-            if (visited[v]) return;
-            visited[v] = true;
-            cout << v << " ";
+            if (!visited[v]) {
+                visited[v] = true;
+                cout << v << " ";
+                doVisit = true;
+            }
         }
 
-        for (int neighbor : adj[v]) {
-            #pragma omp task
-            parallelDFSUtil(neighbor, visited);
+        if (doVisit) {
+            for (int neighbor : adj[v]) {
+                #pragma omp task
+                dfsUtil(neighbor, visited);
+            }
         }
+
+        #pragma omp taskwait
     }
 
-    void parallelBFS(int startVertex) {
+    void parallelBFS(int start) {
         vector<bool> visited(V, false);
         queue<int> q;
 
-        visited[startVertex] = true;
-        q.push(startVertex);
+        visited[start] = true;
+        q.push(start);
 
         #pragma omp parallel
         {
@@ -84,29 +93,27 @@ public:
 
 int main() {
     int V, E;
-    cout << "Enter the number of vertices: ";
+    cout << "Enter number of vertices: ";
     cin >> V;
-    cout << "Enter the number of edges: ";
+    cout << "Enter number of edges: ";
     cin >> E;
 
     Graph g(V);
-    cout << "Enter the edges (format: vertex1 vertex2):" << endl;
-    for (int i = 0; i < E; ++i) {
-        int v, w;
-        cin >> v >> w;
-        g.addEdge(v, w);
+    cout << "Enter edges (u v):" << endl;
+    for (int i = 0; i < E; i++) {
+        int u, v;
+        cin >> u >> v;
+        g.addEdge(u, v);
     }
 
-    int startVertex;
-    cout << "Enter the starting vertex for DFS and BFS: ";
-    cin >> startVertex;
+    int start;
+    cout << "Enter starting vertex: ";
+    cin >> start;
 
-    cout << "Parallel Depth-First Search (DFS): ";
-    g.parallelDFS(startVertex);
-    cout << endl;
-
-    cout << "Parallel Breadth-First Search (BFS): ";
-    g.parallelBFS(startVertex);
+    cout << "Parallel DFS: ";
+    g.parallelDFS(start);
+    cout << "\nParallel BFS: ";
+    g.parallelBFS(start);
     cout << endl;
 
     return 0;
