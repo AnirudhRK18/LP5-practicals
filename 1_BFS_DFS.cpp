@@ -7,54 +7,50 @@ class Graph {
     vector<vector<int>> adj;
 
 public:
-    Graph(int V) {
-        this->V = V;
-        adj.resize(V);
+    Graph(int V) : V(V), adj(V) {}
+
+    void addEdge(int v, int w) {
+        adj[v].push_back(w);
+        adj[w].push_back(v); // Assuming undirected graph
     }
 
-    void addEdge(int u, int v) {
-        adj[u].push_back(v);
-        adj[v].push_back(u); // Undirected graph
-    }
-
-    void parallelDFS(int start) {
+    void parallelDFS(int startVertex) {
         vector<bool> visited(V, false);
 
         #pragma omp parallel
         {
-            #pragma omp single
-            dfsUtil(start, visited);
+            #pragma omp single nowait
+            {
+                parallelDFSUtil(startVertex, visited);
+            }
         }
     }
 
-    void dfsUtil(int v, vector<bool>& visited) {
-        bool doVisit = false;
-
-        #pragma omp critical
-        {
-            if (!visited[v]) {
-                visited[v] = true;
-                cout << v << " ";
-                doVisit = true;
-            }
+    void parallelDFSUtil(int v, vector<bool>& visited) {
+        // Check if the vertex is visited
+        if (visited[v]) {
+            return; // Early exit without using OpenMP critical
         }
 
-        if (doVisit) {
-            for (int neighbor : adj[v]) {
-                #pragma omp task
-                dfsUtil(neighbor, visited);
+        // Mark the current vertex as visited
+        visited[v] = true;
+        cout << v << " ";
+
+        // Iterate over neighbors sequentially
+        for (int neighbor : adj[v]) {
+            // If the neighbor is not visited, process it in parallel
+            if (!visited[neighbor]) {
+                parallelDFSUtil(neighbor, visited);  // Sequential call to avoid issues
             }
         }
-
-        #pragma omp taskwait
     }
 
-    void parallelBFS(int start) {
+    void parallelBFS(int startVertex) {
         vector<bool> visited(V, false);
         queue<int> q;
 
-        visited[start] = true;
-        q.push(start);
+        visited[startVertex] = true;
+        q.push(startVertex);
 
         #pragma omp parallel
         {
@@ -100,20 +96,22 @@ int main() {
 
     Graph g(V);
     cout << "Enter edges (u v):" << endl;
-    for (int i = 0; i < E; i++) {
-        int u, v;
-        cin >> u >> v;
-        g.addEdge(u, v);
+    for (int i = 0; i < E; ++i) {
+        int v, w;
+        cin >> v >> w;
+        g.addEdge(v, w);
     }
 
-    int start;
-    cout << "Enter starting vertex: ";
-    cin >> start;
+    int startVertex;
+    cout << "Enter starting vertex for DFS and BFS: ";
+    cin >> startVertex;
 
-    cout << "Parallel DFS: ";
-    g.parallelDFS(start);
-    cout << "\nParallel BFS: ";
-    g.parallelBFS(start);
+    cout << "Parallel Depth-First Search (DFS): ";
+    g.parallelDFS(startVertex);
+    cout << endl;
+
+    cout << "Parallel Breadth-First Search (BFS): ";
+    g.parallelBFS(startVertex);
     cout << endl;
 
     return 0;
